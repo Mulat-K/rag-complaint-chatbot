@@ -3,12 +3,11 @@ numpy
 matplotlib
 seaborn
 scikit-learn
-sentence-transformers
 langchain
+langchain-community
+langchain-huggingface
 chromadb
-faiss-cpu
-tqdm
-gradio
+sentence-transformers
 streamlit
-pyarrow
-jupyter
+python-dotenv
+ipykernel
