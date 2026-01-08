@@ -6,27 +6,40 @@ import sys
 sys.path.append(os.path.abspath('src'))
 from rag_pipeline import build_rag_chain
 
-# Page Config
+# --- Page Configuration ---
 st.set_page_config(page_title="CrediTrust Complaint Analyst", page_icon="🏦")
 
 st.title("🏦 CrediTrust Intelligent Complaint Analysis")
 st.markdown("Ask questions about customer feedback across Credit Cards, Loans, and more.")
 
-# Sidebar for API Key
-with st.sidebar:
-    st.header("Configuration")
-    api_key = st.text_input("Enter HuggingFace API Token", type="password")
-    if not api_key:
-        st.warning("Please enter your HuggingFace API Token to proceed.")
-        st.stop()
-    
-    os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_key
-
-# Initialize Session State for Chat History
+# --- Session State Initialization ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Initialize Chain (Cached to prevent reloading on every interaction)
+# --- Sidebar: Config & Actions ---
+with st.sidebar:
+    st.header("Configuration")
+    
+    # 1. API Key Input
+    api_key = st.text_input("Enter HuggingFace API Token", type="password")
+    if api_key:
+        os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_key
+    
+    st.divider()
+    
+    # 2. Clear Conversation Button (New Feature)
+    def clear_chat_history():
+        st.session_state.messages = []
+    
+    if st.button("🗑️ Clear Conversation", type="primary"):
+        clear_chat_history()
+
+    if not api_key:
+        st.warning("Please enter your HuggingFace API Token to proceed.")
+        st.stop()
+
+# --- Load RAG Chain (Cached) ---
+# We use cache_resource so the model doesn't reload when you clear chat or interact
 @st.cache_resource
 def get_chain(api_key):
     return build_rag_chain(api_key)
@@ -37,36 +50,38 @@ except Exception as e:
     st.error(f"Failed to load RAG pipeline: {e}")
     st.stop()
 
-# Display Chat History
+# --- Display Chat History ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# User Input
+# --- Handle User Input ---
 if prompt := st.chat_input("Ex: Why are customers closing their savings accounts?"):
-    # Add user message to history
+    # 1. Add user message to history
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate Response
+    # 2. Generate Response
     with st.chat_message("assistant"):
         with st.spinner("Analyzing complaints..."):
             try:
+                # Invoke the RAG chain
                 response = qa_chain.invoke({"query": prompt})
                 answer = response['result']
                 source_docs = response['source_documents']
                 
+                # Display Answer
                 st.markdown(answer)
                 
-                # Expandable Sources Section
+                # Display Sources (Expandable)
                 with st.expander("View Evidence (Source Complaints)"):
                     for i, doc in enumerate(source_docs):
-                        st.markdown(f"**Source {i+1} ({doc.metadata['product_category']}):**")
+                        st.markdown(f"**Source {i+1} ({doc.metadata.get('product_category', 'Unknown')}):**")
                         st.markdown(f"> *{doc.page_content}*")
                         st.divider()
                 
-                # Add assistant message to history
+                # 3. Add assistant message to history
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 
             except Exception as e:
